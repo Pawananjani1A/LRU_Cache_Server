@@ -1,0 +1,50 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Parameters:
+  Env:
+    Type: String
+    Default: prod
+Resources:
+  X2BFFServiceAccountRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${Env}-x2-core-multi-product-iam-role-eks-pod
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                -  eks.amazonaws.com
+      Policies:
+        - PolicyName: EKSClusterAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "eks:DescribeCluster"
+                  - "eks:ListClusters"
+                  - "eks:CreateFargateProfile"
+                  # Add more necessary EKS actions here
+                Resource: "*"
+        - PolicyName: FetchSecrets
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: "*"
+              - Effect: Allow
+                Action: kms:Decrypt
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - kms:Encrypt
+                  - kms:Decrypt
+                  - kms:ReEncrypt*
+                  - kms:GenerateDataKey*
+                  - kms:DescribeKey
+                Resource: "*"

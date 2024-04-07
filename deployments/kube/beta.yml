@@ -1,0 +1,126 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    type: beta-x2-core-multi-product-config
+    version: primary
+  name: beta-x2-core-multi-product-config
+  namespace: beta-x2-mass-banking
+data:
+  app_port: ':8080'
+  app_name: beta-x2-core-multi-product
+  app_version: 1.0.0
+  application: beta-x2-core-multi-product
+  dd_service_name: beta-x2-core-multi-product
+  service_name: beta-x2-core-multi-product
+  aws_region: ap-south-1
+  awssecrets_mongodb: arn:aws:secretsmanager:ap-south-1:859061673455:secret:beta/x2/mongodb-OlB0Ul
+  mongodbUrl_x2coremultiproduct: mongodb+srv://%s:%s@prod-x2-pl-0.lw4uz.mongodb.net/%s
+  dbName_x2coremultiproduct: x2_core_multi_product
+  collName_x2coremultiproduct_productconfig: product_config
+  collName_x2coremultiproduct_userassociations: user_associations
+  collName_x2coremultiproduct_migrations: migrations
+  collName_x2coremultiproduct_bulkmigrations: bulk_migrations
+  collName_x2coremultiproduct_consumers_data: consumer_data
+  x2coreuser_fetchuser: http://beta-x2-core-user.beta-x2-mass-banking:8080/x2-core/users/v1/fetch
+  x2coreuser_productenablements: http://beta-x2-core-user.beta-x2-mass-banking:8080/x2-core/users/v1/products/%s
+  x2coreuser_fetchuserdeviceinfo: http://beta-x2-core-user.beta-x2-mass-banking:8080/x2-core/users/v1/device-info
+  x2corearab_fetchusercategory: http://beta-x2-algo-risk-analysis-backend.beta-x2-mass-banking:3000/x2-core/arab/v1/user-category/%s
+  kafka_broker: lkc-387xko-61elog.ap-south-1.aws.glb.confluent.cloud:9092
+  kafka_groupid: cg-niyo-x2-core-beta
+  kafka_secretarn: arn:aws:secretsmanager:ap-south-1:859061673455:secret:beta/x2/core-8HwCdP
+  kafka_topicname_productenablement: com.niyo.x2.core.beta.product.enablement.v1
+  kafka_topicname_qualityengine: com.niyo.x2.core.beta.arab.quality_analysis_score.v1
+  kafka_topicname_envoyedge: com.niyo.x2.core.beta.envoyedge.v1
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    type: beta-x2-core-multi-product
+    version: primary
+  name: beta-x2-core-multi-product
+  namespace: beta-x2-mass-banking
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      type: beta-x2-core-multi-product
+  template:
+    metadata:
+      labels:
+        type: beta-x2-core-multi-product
+        version: primary
+    spec:
+      serviceAccountName: beta-x2-core-multi-product-sa
+      containers:
+        - name: beta-x2-core-multi-product-http-server
+          image: 287726214764.dkr.ecr.ap-south-1.amazonaws.com/niyox2/x2-core-multi-product:$IMGTAGHTTPSERVER
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: beta-x2-core-multi-product-config
+        - name: beta-x2-core-multi-product-quality-engine-consumer
+          image: 287726214764.dkr.ecr.ap-south-1.amazonaws.com/niyox2/x2-core-multi-product:$IMGTAGCONSUMERQUALITYENGINE
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: beta-x2-core-multi-product-config
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: beta-x2-core-multi-product
+  namespace: beta-x2-mass-banking
+spec:
+  ports:
+    - name: http-beta-x2-core-multi-product
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    type: beta-x2-core-multi-product
+  type: ClusterIP
+---
+
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: beta-x2-core-multi-product-vs
+  namespace: beta-x2-mass-banking
+spec:
+  gateways:
+    - beta-x2-mass-banking-gateway
+  hosts:
+    - '*'
+  http:
+    - match:
+        - uri:
+            prefix: /x2-core/beta/multi-product
+      route:
+        - destination:
+            host: beta-x2-core-multi-product.beta-x2-mass-banking.svc.cluster.local
+            port:
+              number: 8080
+            subset: primary
+          weight: 100
+
+---
+
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: beta-x2-core-multi-product-dr
+  namespace: beta-x2-mass-banking
+spec:
+  host: beta-x2-core-multi-product.beta-x2-mass-banking.svc.cluster.local
+  subsets:
+    - labels:
+        version: primary
+      name: primary

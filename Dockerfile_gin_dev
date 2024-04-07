@@ -1,0 +1,24 @@
+FROM golang:1.22.1-alpine AS builder
+RUN apk --no-cache add bash git make gcc g++
+RUN git clone https://github.com/edenhill/librdkafka.git \
+    && cd librdkafka \
+    && ./configure \
+    && make \
+    && make install
+WORKDIR /app
+COPY . /app
+
+
+ENV SERVER_BUILD_DIR=src/build/gin \
+    SERVER_DIR=src/cmd/gin/main.go \
+    TAG=dev \
+    PACKAGE=lruCache/poc
+
+RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build -tags "musl ${TAG}" -o ${SERVER_BUILD_DIR}/gin_bin ./${SERVER_DIR}
+# Final stage
+FROM golang:1.22.1-alpine
+RUN apk --no-cache add bash
+WORKDIR /
+COPY --from=builder /app/src/build/gin/gin_bin .
+EXPOSE 8080
+ENTRYPOINT [ "/gin_bin" ]

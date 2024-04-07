@@ -1,0 +1,127 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    type: uat-x2-core-multi-product
+    version: primary
+  name: uat-x2-core-multi-product-config
+  namespace: x2-mass-banking
+data:
+  app_port: ':8080'
+  app_name: uat-x2-core-multi-product
+  app_version: 1.0.0
+  application: uat-x2-core-multi-product
+  dd_service_name: uat-x2-core-multi-product
+  service_name: uat-x2-core-multi-product
+  aws_region: ap-south-1
+  mongodbUrl_x2coremultiproduct: mongodb+srv://x2-core-onboarding:bwdLnYDrDlTNDXEH@uat-mongo.0hl2k.mongodb.net/x2_core_multi_product
+  dbName_x2coremultiproduct: x2_core_multi_product
+  collName_x2coremultiproduct_productconfig: product_config
+  collName_x2coremultiproduct_userassociations: user_associations
+  collName_x2coremultiproduct_migrations: migrations
+  collName_x2coremultiproduct_bulkmigrations: bulk_migrations
+  collName_x2coremultiproduct_consumers_data: consumer_data
+  x2coreuser_fetchuser: http://istio-internal-gateway.uat.niyo/x2-core/users/v1/fetch
+  x2coreuser_fetchuserdeviceinfo: http://istio-internal-gateway.uat.niyo/x2-core/users/v1/device-info
+  x2coreuser_productenablements: http://istio-internal-gateway.uat.niyo/x2-core/users/v1/products/%s
+  x2corearab_fetchusercategory: http://istio-internal-gateway.uat.niyo/x2-core/arab/v1/user-category/%s
+  kafka_broker: pkc-l7pr2.ap-south-1.aws.confluent.cloud:9092
+  kafka_groupid: cg-niyo-x2-core-uat
+  kafka_secretarn: arn:aws:secretsmanager:ap-south-1:859061673455:secret:uat-x2-core-CQMYoV
+  kafka_topicname_productenablement: com.niyo.x2.core.uat.product.enablement.v1
+  kafka_topicname_qualityengine: com.niyo.x2.core.uat.arab.quality_analysis_score.v1
+  kafka_topicname_envoyedge: com.niyo.x2.core.uat.envoyedge.v1
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    type: uat-x2-core-multi-product
+    version: primary
+  name: uat-x2-core-multi-product
+  namespace: x2-mass-banking
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      type: uat-x2-core-multi-product
+  template:
+    metadata:
+      labels:
+        type: uat-x2-core-multi-product
+        version: primary
+    spec:
+      serviceAccountName: uat-x2-core-multi-product-sa
+      containers:
+        - name: uat-x2-core-multi-product-http-server
+          image: 287726214764.dkr.ecr.ap-south-1.amazonaws.com/niyox2/x2-core-multi-product:$IMGTAGHTTPSERVER
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: uat-x2-core-multi-product-config
+        - name: uat-x2-core-multi-product-quality-engine-consumer
+          image: 287726214764.dkr.ecr.ap-south-1.amazonaws.com/niyox2/x2-core-multi-product:$IMGTAGCONSUMERQUALITYENGINE
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: uat-x2-core-multi-product-config
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: uat-x2-core-multi-product
+  namespace: x2-mass-banking
+spec:
+  ports:
+    - name: http-uat-x2-core-multi-product
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    type: uat-x2-core-multi-product
+  type: ClusterIP
+
+---
+
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: uat-x2-core-multi-product-vs
+  namespace: x2-mass-banking
+spec:
+  gateways:
+    - uat-x2-gateway
+  hosts:
+    - istio-internal-gateway.uat.niyo
+  http:
+    - match:
+        - uri:
+            prefix: /x2-core/uat/multi-product
+      route:
+        - destination:
+            host: uat-x2-core-multi-product.x2-mass-banking.svc.cluster.local
+            port:
+              number: 8080
+            subset: primary
+          weight: 100
+
+---
+
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: uat-x2-core-multi-product-dr
+  namespace: x2-mass-banking
+spec:
+  host: uat-x2-core-multi-product.x2-mass-banking.svc.cluster.local
+  subsets:
+    - labels:
+        version: primary
+      name: primary

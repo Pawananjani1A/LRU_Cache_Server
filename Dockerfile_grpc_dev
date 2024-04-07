@@ -1,0 +1,31 @@
+FROM golang:1.20.2
+#WORKDIR /app
+# Set the working directory inside the container
+WORKDIR /app
+
+
+
+ENV \
+    SERVER_BUILD_DIR=src/build/grpc/main.go \
+    SERVER_DIR=src/cmd/grpc/main.go \
+    TAG=dev \
+    PACKAGE=lruCache/poc \
+
+# Copy only the necessary files to avoid including the go.mod from $GOPATH
+COPY go.mod ./
+
+
+# Install dependencies
+RUN go mod download
+
+# Copy the entire project directory
+COPY . .
+
+RUN pwd
+RUN ls
+EXPOSE 8080
+
+COPY scripts/grpc/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
+#CMD ["make","grpc_run_server"]
