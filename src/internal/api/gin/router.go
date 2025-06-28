@@ -43,5 +43,4 @@ func (rg *RouterGroup) AddV1Routes() {
 	cacheRoutes := v1Routes.Group(string(constants.RGCache))
 	cacheRoutes.POST(string(constants.RPGet), ginmiddlewares.ServeEndpoint[routemodels.GetModel](cachehandlers.GetValue))
 	cacheRoutes.POST(string(constants.RPSet), ginmiddlewares.ServeEndpoint[routemodels.SetModel](cachehandlers.SetValue))
-
 }
